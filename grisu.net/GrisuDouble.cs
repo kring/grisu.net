@@ -143,7 +143,7 @@ namespace grisu.net
             }
         }
 
-        public bool IsNan
+        public bool IsNaN
         {
             get
             {

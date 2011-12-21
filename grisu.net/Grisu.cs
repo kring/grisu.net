@@ -6,53 +6,17 @@ namespace grisu.net
 {
     public static class Grisu
     {
-        // When calling ToFixed with a double > 10^kMaxFixedDigitsBeforePoint
-        // or a requested_digits parameter > kMaxFixedDigitsAfterPoint then the
-        // function returns false.
-        private const int kMaxFixedDigitsBeforePoint = 60;
-        private const int kMaxFixedDigitsAfterPoint = 60;
-
-        // When calling ToExponential with a requested_digits
-        // parameter > kMaxExponentialDigits then the function returns false.
-        private const int kMaxExponentialDigits = 120;
-
-        // When calling ToPrecision with a requested_digits
-        // parameter < kMinPrecisionDigits or requested_digits > kMaxPrecisionDigits
-        // then the function returns false.
-        private const int kMinPrecisionDigits = 1;
-        private const int kMaxPrecisionDigits = 120;
-
-        // The maximal number of digits that are needed to emit a double in base 10.
-        // A higher precision can be achieved by using more digits, but the shortest
-        // accurate representation of any double will never use more digits than
-        // kBase10MaximalLength.
-        // Note that DoubleToAscii null-terminates its input. So the given buffer
-        // should be at least kBase10MaximalLength + 1 characters long.
-        private const int kBase10MaximalLength = 17;
-
-        private const int decimal_in_shortest_low_ = -6;
-        private const int decimal_in_shortest_high_ = 21;
-
-        private const string infinity_symbol_ = "Inf";
-        private const string nan_symbol_ = "NaN";
-        private const char exponent_character_ = 'e';
-
-        private enum DtoaMode
-        {
-            // Produce the shortest correct representation.
-            // For example the output of 0.299999999999999988897 is (the less accurate
-            // but correct) 0.3.
-            SHORTEST,
-            // Produce a fixed number of digits after the decimal point.
-            // For instance fixed(0.1, 4) becomes 0.1000
-            // If the input number is big, the output will be big.
-            FIXED,
-            // Fixed number of digits (independent of the decimal point).
-            PRECISION
-        }
+        [ThreadStatic]
+        private static char[] ts_decimal_rep;
 
         public static void DoubleToString(double value, StringBuilder resultBuilder)
         {
+            if (value < 0.0)
+            {
+                resultBuilder.Append('-');
+                value = -value;
+            }
+
             GrisuDouble grisuDouble = new GrisuDouble(value);
             if (grisuDouble.IsSpecial)
             {
@@ -60,23 +24,17 @@ namespace grisu.net
                 return;
             }
 
+            char[] decimal_rep = ts_decimal_rep;
+            if (decimal_rep == null)
+                decimal_rep = ts_decimal_rep = new char[kBase10MaximalLength + 1];
+
             int decimal_point;
-            bool sign;
-            const int kDecimalRepCapacity = kBase10MaximalLength + 1;
-            char[] decimal_rep = new char[kDecimalRepCapacity];
             int decimal_rep_length;
 
-            if (!DoubleToAscii(value, DtoaMode.SHORTEST, 0, decimal_rep,
-                          out sign, out decimal_rep_length, out decimal_point))
+            if (!DoubleToShortestAscii(grisuDouble, decimal_rep, out decimal_rep_length, out decimal_point))
             {
                 resultBuilder.AppendFormat("{0:R}", value);
                 return;
-            }
-
-            bool unique_zero = false; //(flags_ & UNIQUE_ZERO) != 0;
-            if (sign && (value != 0.0 || !unique_zero))
-            {
-                resultBuilder.Append('-');
             }
 
             int decimalRepLength = decimal_rep_length + 1;
@@ -115,6 +73,51 @@ namespace grisu.net
             }
         }
 
+        // When calling ToFixed with a double > 10^kMaxFixedDigitsBeforePoint
+        // or a requested_digits parameter > kMaxFixedDigitsAfterPoint then the
+        // function returns false.
+        private const int kMaxFixedDigitsBeforePoint = 60;
+        private const int kMaxFixedDigitsAfterPoint = 60;
+
+        // When calling ToExponential with a requested_digits
+        // parameter > kMaxExponentialDigits then the function returns false.
+        private const int kMaxExponentialDigits = 120;
+
+        // When calling ToPrecision with a requested_digits
+        // parameter < kMinPrecisionDigits or requested_digits > kMaxPrecisionDigits
+        // then the function returns false.
+        private const int kMinPrecisionDigits = 1;
+        private const int kMaxPrecisionDigits = 120;
+
+        // The maximal number of digits that are needed to emit a double in base 10.
+        // A higher precision can be achieved by using more digits, but the shortest
+        // accurate representation of any double will never use more digits than
+        // kBase10MaximalLength.
+        // Note that DoubleToAscii null-terminates its input. So the given buffer
+        // should be at least kBase10MaximalLength + 1 characters long.
+        private const int kBase10MaximalLength = 17;
+
+        private const int decimal_in_shortest_low_ = -6;
+        private const int decimal_in_shortest_high_ = 21;
+
+        private const string infinity_symbol_ = "Infinity";
+        private const string nan_symbol_ = "NaN";
+        private const char exponent_character_ = 'e';
+
+        private enum DtoaMode
+        {
+            // Produce the shortest correct representation.
+            // For example the output of 0.299999999999999988897 is (the less accurate
+            // but correct) 0.3.
+            SHORTEST,
+            // Produce a fixed number of digits after the decimal point.
+            // For instance fixed(0.1, 4) becomes 0.1000
+            // If the input number is big, the output will be big.
+            FIXED,
+            // Fixed number of digits (independent of the decimal point).
+            PRECISION
+        }
+
         private static void HandleSpecialValues(
             ref GrisuDouble double_inspect,
             StringBuilder resultBuilder)
@@ -128,43 +131,21 @@ namespace grisu.net
                 resultBuilder.Append(infinity_symbol_);
                 return;
             }
-            if (double_inspect.IsNan)
+            if (double_inspect.IsNaN)
             {
                 resultBuilder.Append(nan_symbol_);
                 return;
             }
         }
 
-        private static bool DoubleToAscii(double v,
-                                            DtoaMode mode,
-                                            int requested_digits,
-                                            char[] buffer,
-                                            out bool sign,
-                                            out int length,
-                                            out int point)
+        private static bool DoubleToShortestAscii(GrisuDouble v, char[] buffer, out int length, out int point)
         {
-            Debug.Assert(!new GrisuDouble(v).IsSpecial);
-            Debug.Assert(mode == DtoaMode.SHORTEST || requested_digits >= 0);
+            Debug.Assert(!v.IsSpecial);
+            Debug.Assert(v.Value >= 0.0);
 
-            if (new GrisuDouble(v).Sign < 0)
-            {
-                sign = true;
-                v = -v;
-            }
-            else
-            {
-                sign = false;
-            }
+            double value = v.Value;
 
-            if (mode == DtoaMode.PRECISION && requested_digits == 0)
-            {
-                buffer[0] = '\0';
-                length = 0;
-                point = 0;
-                return true;
-            }
-
-            if (v == 0)
+            if (value == 0.0)
             {
                 buffer[0] = '0';
                 buffer[1] = '\0';
@@ -173,51 +154,15 @@ namespace grisu.net
                 return true;
             }
 
-
-            length = 0;
-            point = 0;
-
-            bool fast_worked = false;
-            switch (mode)
-            {
-                case DtoaMode.SHORTEST:
-                    fast_worked = FastDtoaShortest(v, 0, buffer, out length, out point);
-                    break;
-                //case DtoaMode.FIXED:
-                //  fast_worked = FastFixedDtoa(v, requested_digits, vector, length, point);
-                //  break;
-                //case DtoaMode.PRECISION:
-                //  fast_worked = FastDtoa(v, FAST_DTOA_PRECISION, requested_digits,
-                //                         vector, length, point);
-                //  break;
-                default:
-                    //fast_worked = false;
-                    break;
-            }
-
-            return fast_worked;
-        }
-
-        private static bool FastDtoaShortest(double v,
-                      int requested_digits,
-                      char[] buffer,
-                      out int length,
-                      out int decimal_point)
-        {
-            Debug.Assert(v > 0);
-            Debug.Assert(!new GrisuDouble(v).IsSpecial);
-
-            bool result = false;
             int decimal_exponent = 0;
-            result = Grisu3(v, buffer, out length, out decimal_exponent);
+            bool result = Grisu3(v, buffer, out length, out decimal_exponent);
             if (result)
             {
-                decimal_point = length + decimal_exponent;
-                buffer[length] = '\0';
+                point = length + decimal_exponent;
             }
             else
             {
-                decimal_point = 0;
+                point = 0;
             }
             return result;
         }
@@ -242,19 +187,18 @@ namespace grisu.net
         // The last digit will be closest to the actual v. That is, even if several
         // digits might correctly yield 'v' when read again, the closest will be
         // computed.
-        private static bool Grisu3(double v,
+        private static bool Grisu3(GrisuDouble v,
                            char[] buffer,
                            out int length,
                            out int decimal_exponent)
         {
-            GrisuDouble grisuV = new GrisuDouble(v);
-            DiyFp w = grisuV.AsNormalizedDiyFp();
+            DiyFp w = v.AsNormalizedDiyFp();
             // boundary_minus and boundary_plus are the boundaries between v and its
             // closest floating-point neighbors. Any number strictly between
             // boundary_minus and boundary_plus will round to v when convert to a double.
             // Grisu3 will never output representations that lie exactly on a boundary.
             DiyFp boundary_minus, boundary_plus;
-            grisuV.NormalizedBoundaries(out boundary_minus, out boundary_plus);
+            v.NormalizedBoundaries(out boundary_minus, out boundary_plus);
             Debug.Assert(boundary_plus.E == w.E);
             DiyFp ten_mk;  // Cached power of ten: 10^-k
             int mk;        // -k
@@ -280,6 +224,7 @@ namespace grisu.net
             // In other words: let f = scaled_w.f() and e = scaled_w.e(), then
             //           (f-1) * 2^e < w*10^k < (f+1) * 2^e
             DiyFp scaled_w = DiyFp.Times(ref w, ref ten_mk);
+            //w.Multiply(ref ten_mk);
             Debug.Assert(scaled_w.E ==
                    boundary_plus.E + ten_mk.E + DiyFp.kSignificandSize);
             // In theory it would be possible to avoid some recomputations by computing
@@ -625,22 +570,22 @@ namespace grisu.net
                 if (digits_after_point > 0)
                 {
                     result_builder.Append('.');
-                    result_builder.Append(new string('0', -decimal_point));
+                    result_builder.Append('0', -decimal_point);
                     Debug.Assert(length <= digits_after_point - (-decimal_point));
                     result_builder.Append(decimal_digits, 0, length);
                     int remaining_digits = digits_after_point - (-decimal_point) - length;
-                    result_builder.Append(new string('0', remaining_digits));
+                    result_builder.Append('0', remaining_digits);
                 }
             }
             else if (decimal_point >= length)
             {
                 // "decimal_rep0000.00000" or "decimal_rep.0000"
                 result_builder.Append(decimal_digits, 0, length);
-                result_builder.Append(new string('0', decimal_point - length));
+                result_builder.Append('0', decimal_point - length);
                 if (digits_after_point > 0)
                 {
                     result_builder.Append('.');
-                    result_builder.Append(new string('0', digits_after_point));
+                    result_builder.Append('0', digits_after_point);
                 }
             }
             else
@@ -653,52 +598,58 @@ namespace grisu.net
                 result_builder.Append(decimal_digits, decimal_point,
                                              length - decimal_point);
                 int remaining_digits = digits_after_point - (length - decimal_point);
-                result_builder.Append(new string('0', remaining_digits));
+                result_builder.Append('0', remaining_digits);
             }
             if (digits_after_point == 0)
             {
-                //if ((flags_ & EMIT_TRAILING_DECIMAL_POINT) != 0) {
                 result_builder.Append('.');
-                //}
-                //if ((flags_ & EMIT_TRAILING_ZERO_AFTER_POINT) != 0) {
                 result_builder.Append('0');
-                //}
             }
         }
 
-private static void CreateExponentialRepresentation(
-    char[] decimal_digits,
-    int length,
-    int exponent,
-    StringBuilder result_builder) {
-  Debug.Assert(length != 0);
-  result_builder.Append(decimal_digits[0]);
-  if (length != 1) {
-    result_builder.Append('.');
-    result_builder.Append(decimal_digits, 1, length-1);
-  }
-  result_builder.Append(exponent_character_);
-  if (exponent < 0) {
-    result_builder.Append('-');
-    exponent = -exponent;
-  } else {
-    //if ((flags_ & EMIT_POSITIVE_EXPONENT_SIGN) != 0) {
-    //  result_builder->AddCharacter('+');
-    //}
-  }
-  if (exponent == 0) {
-    result_builder.Append('0');
-    return;
-  }
-  Debug.Assert(exponent < 1e4);
-  const int kMaxExponentLength = 5;
-  char[] buffer = new char[kMaxExponentLength];
-  int first_char_pos = kMaxExponentLength;
-  while (exponent > 0) {
-    buffer[--first_char_pos] = (char)('0' + (exponent % 10));
-    exponent /= 10;
-  }
-  result_builder.Append(buffer, first_char_pos,
-                               kMaxExponentLength - first_char_pos);
-}    }
+        private static void CreateExponentialRepresentation(
+            char[] decimal_digits,
+            int length,
+            int exponent,
+            StringBuilder result_builder)
+        {
+            Debug.Assert(length != 0);
+            result_builder.Append(decimal_digits[0]);
+            if (length != 1)
+            {
+                result_builder.Append('.');
+                result_builder.Append(decimal_digits, 1, length - 1);
+            }
+            result_builder.Append(exponent_character_);
+            if (exponent < 0)
+            {
+                result_builder.Append('-');
+                exponent = -exponent;
+            }
+            if (exponent == 0)
+            {
+                result_builder.Append('0');
+                return;
+            }
+            Debug.Assert(exponent < 1e4);
+            if (exponent >= 100)
+            {
+                result_builder.Append((char)('0' + exponent / 100));
+                exponent %= 100;
+                result_builder.Append((char)('0' + exponent / 10));
+                exponent %= 10;
+                result_builder.Append((char)('0' + exponent));
+            }
+            else if (exponent >= 10)
+            {
+                result_builder.Append((char)('0' + exponent / 10));
+                exponent %= 10;
+                result_builder.Append((char)('0' + exponent));
+            }
+            else
+            {
+                result_builder.Append(exponent);
+            }
+        }
+    }
 }
