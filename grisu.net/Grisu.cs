@@ -79,9 +79,29 @@ namespace grisu.net
                 resultBuilder.Append('-');
             }
 
+            int decimalRepLength = decimal_rep_length + 1;
+            if (decimal_point < 1)
+            {
+                decimalRepLength += -decimal_point + 1;
+            }
+            else if (decimal_point >= decimal_rep_length)
+            {
+                decimalRepLength += decimal_point - decimal_rep_length + 1;
+            }
+
             int exponent = decimal_point - 1;
-            if ((decimal_in_shortest_low_ <= exponent) &&
-                (exponent < decimal_in_shortest_high_))
+            int absExponent = Math.Abs(exponent);
+            int exponentRepLength = decimal_rep_length + 3;
+            if (exponent < 0)
+                ++exponentRepLength;
+            if (absExponent >= 10)
+            {
+                ++exponentRepLength;
+                if (absExponent >= 100)
+                    ++exponentRepLength;
+            }
+
+            if (decimalRepLength <= exponentRepLength)
             {
                 CreateDecimalRepresentation(decimal_rep, decimal_rep_length,
                                             decimal_point,
