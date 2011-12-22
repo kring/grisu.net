@@ -31,7 +31,7 @@ namespace grisu.net
             int decimal_point;
             int decimal_rep_length;
 
-            if (!DoubleToShortestAscii(grisuDouble, decimal_rep, out decimal_rep_length, out decimal_point))
+            if (!DoubleToShortestAscii(ref grisuDouble, decimal_rep, out decimal_rep_length, out decimal_point))
             {
                 resultBuilder.AppendFormat("{0:R}", value);
                 return;
@@ -138,7 +138,7 @@ namespace grisu.net
             }
         }
 
-        private static bool DoubleToShortestAscii(GrisuDouble v, char[] buffer, out int length, out int point)
+        private static bool DoubleToShortestAscii(ref GrisuDouble v, char[] buffer, out int length, out int point)
         {
             Debug.Assert(!v.IsSpecial);
             Debug.Assert(v.Value >= 0.0);
@@ -155,7 +155,7 @@ namespace grisu.net
             }
 
             int decimal_exponent = 0;
-            bool result = Grisu3(v, buffer, out length, out decimal_exponent);
+            bool result = Grisu3(ref v, buffer, out length, out decimal_exponent);
             if (result)
             {
                 point = length + decimal_exponent;
@@ -187,7 +187,7 @@ namespace grisu.net
         // The last digit will be closest to the actual v. That is, even if several
         // digits might correctly yield 'v' when read again, the closest will be
         // computed.
-        private static bool Grisu3(GrisuDouble v,
+        private static bool Grisu3(ref GrisuDouble v,
                            char[] buffer,
                            out int length,
                            out int decimal_exponent)
@@ -223,17 +223,19 @@ namespace grisu.net
             // In fact: scaled_w - w*10^k < 1ulp (unit in the last place) of scaled_w.
             // In other words: let f = scaled_w.f() and e = scaled_w.e(), then
             //           (f-1) * 2^e < w*10^k < (f+1) * 2^e
-            DiyFp scaled_w = DiyFp.Times(ref w, ref ten_mk);
-            //w.Multiply(ref ten_mk);
-            Debug.Assert(scaled_w.E ==
+            //DiyFp scaled_w = DiyFp.Times(ref w, ref ten_mk);
+            w.Multiply(ref ten_mk);
+            Debug.Assert(w.E ==
                    boundary_plus.E + ten_mk.E + DiyFp.kSignificandSize);
             // In theory it would be possible to avoid some recomputations by computing
             // the difference between w and boundary_minus/plus (a power of 2) and to
             // compute scaled_boundary_minus/plus by subtracting/adding from
             // scaled_w. However the code becomes much less readable and the speed
             // enhancements are not terriffic.
-            DiyFp scaled_boundary_minus = DiyFp.Times(ref boundary_minus, ref ten_mk);
-            DiyFp scaled_boundary_plus = DiyFp.Times(ref boundary_plus, ref ten_mk);
+            //DiyFp scaled_boundary_minus = DiyFp.Times(ref boundary_minus, ref ten_mk);
+            boundary_minus.Multiply(ref ten_mk);
+            //DiyFp scaled_boundary_plus = DiyFp.Times(ref boundary_plus, ref ten_mk);
+            boundary_plus.Multiply(ref ten_mk);
 
             // DigitGen will generate the digits of scaled_w. Therefore we have
             // v == (double) (scaled_w * 10^-mk).
@@ -242,7 +244,7 @@ namespace grisu.net
             // the buffer will be filled with "123" und the decimal_exponent will be
             // decreased by 2.
             int kappa;
-            bool result = DigitGen(ref scaled_boundary_minus, ref scaled_w, ref scaled_boundary_plus,
+            bool result = DigitGen(ref boundary_minus, ref w, ref boundary_plus,
                                    buffer, out length, out kappa);
             decimal_exponent = -mk + kappa;
             return result;
@@ -339,11 +341,12 @@ namespace grisu.net
             // The invariant holds for the first iteration: kappa has been initialized
             // with the divisor exponent + 1. And the divisor is the biggest power of ten
             // that is smaller than integrals.
+            ulong unsafeIntervalF = unsafe_interval.F;
             while (kappa > 0)
             {
                 int digit = (int)(integrals / divisor);
                 buffer[length] = (char)('0' + digit);
-                length++;
+                ++length;
                 integrals %= divisor;
                 kappa--;
                 // Note that kappa now equals the exponent of the divisor and that the
@@ -352,12 +355,13 @@ namespace grisu.net
                     ((ulong)(integrals) << -one.E) + fractionals;
                 // Invariant: too_high = buffer * 10^kappa + DiyFp(rest, one.e())
                 // Reminder: unsafe_interval.e() == one.e()
-                if (rest < unsafe_interval.F)
+                if (rest < unsafeIntervalF)
                 {
                     // Rounding down (by not emitting the remaining digits) yields a number
                     // that lies within the unsafe interval.
-                    return RoundWeed(buffer, length, DiyFp.Minus(ref too_high, ref w).F,
-                                     unsafe_interval.F, rest,
+                    too_high.Subtract(ref w);
+                    return RoundWeed(buffer, length, too_high.F,
+                                     unsafeIntervalF, rest,
                                      (ulong)(divisor) << -one.E, unit);
                 }
                 divisor /= 10;
@@ -376,16 +380,17 @@ namespace grisu.net
             {
                 fractionals *= 10;
                 unit *= 10;
-                unsafe_interval.F = unsafe_interval.F * 10;
+                unsafe_interval.F *= 10;
                 // Integer division by one.
                 int digit = (int)(fractionals >> -one.E);
                 buffer[length] = (char)('0' + digit);
-                length++;
+                ++length;
                 fractionals &= one.F - 1;  // Modulo by one.
                 kappa--;
                 if (fractionals < unsafe_interval.F)
                 {
-                    return RoundWeed(buffer, length, DiyFp.Minus(ref too_high, ref w).F * unit,
+                    too_high.Subtract(ref w);
+                    return RoundWeed(buffer, length, too_high.F * unit,
                                      unsafe_interval.F, fractionals, one.F, unit);
                 }
             }

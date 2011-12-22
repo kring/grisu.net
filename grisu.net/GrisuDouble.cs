@@ -52,8 +52,20 @@ namespace grisu.net
         public DiyFp AsNormalizedDiyFp()
         {
             Debug.Assert(Value > 0.0);
-            ulong f = Significand;
-            int e = Exponent;
+
+            ulong d64 = d64_;
+            ulong f;
+            int e;
+            if (IsDenormal)
+            {
+                f = d64 & kSignificandMask;
+                e = kDenormalExponent;
+            }
+            else
+            {
+                f = (d64 & kSignificandMask) + kHiddenBit;
+                e = (int)((d64 & kExponentMask) >> kPhysicalSignificandSize) - kExponentBias;
+            }
 
             // The current double could be a denormal.
             while ((f & kHiddenBit) == 0)
@@ -98,9 +110,8 @@ namespace grisu.net
             {
                 if (IsDenormal) return kDenormalExponent;
 
-                ulong d64 = AsUInt64();
                 int biased_e =
-                    (int)((d64 & kExponentMask) >> kPhysicalSignificandSize);
+                    (int)((d64_ & kExponentMask) >> kPhysicalSignificandSize);
                 return biased_e - kExponentBias;
             }
         }
@@ -109,15 +120,15 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                ulong significand = d64 & kSignificandMask;
-                if (!IsDenormal)
+                ulong significand = d64_ & kSignificandMask;
+                if (IsDenormal)
                 {
-                    return significand + kHiddenBit;
+                    return significand;
+                    
                 }
                 else
                 {
-                    return significand;
+                    return significand + kHiddenBit;
                 }
             }
         }
@@ -127,8 +138,7 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                return (d64 & kExponentMask) == 0;
+                return (d64_ & kExponentMask) == 0;
             }
         }
 
@@ -138,8 +148,7 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                return (d64 & kExponentMask) == kExponentMask;
+                return (d64_ & kExponentMask) == kExponentMask;
             }
         }
 
@@ -147,9 +156,8 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                return ((d64 & kExponentMask) == kExponentMask) &&
-                ((d64 & kSignificandMask) != 0);
+                return ((d64_ & kExponentMask) == kExponentMask) &&
+                        ((d64_ & kSignificandMask) != 0);
             }
         }
 
@@ -157,9 +165,8 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                return ((d64 & kExponentMask) == kExponentMask) &&
-                    ((d64 & kSignificandMask) == 0);
+                return ((d64_ & kExponentMask) == kExponentMask) &&
+                    ((d64_ & kSignificandMask) == 0);
             }
         }
 
@@ -167,8 +174,7 @@ namespace grisu.net
         {
             get
             {
-                ulong d64 = AsUInt64();
-                return (d64 & kSignMask) == 0 ? 1 : -1;
+                return (d64_ & kSignMask) == 0 ? 1 : -1;
             }
         }
 
@@ -187,12 +193,44 @@ namespace grisu.net
         public void NormalizedBoundaries(out DiyFp out_m_minus, out DiyFp out_m_plus)
         {
             Debug.Assert(Value > 0.0);
-            DiyFp v = AsDiyFp();
-            bool significand_is_zero = (v.F == kHiddenBit);
-            DiyFp temp = new DiyFp((v.F << 1) + 1, v.E - 1);
-            DiyFp m_plus = DiyFp.Normalize(ref temp);
-            DiyFp m_minus;
-            if (significand_is_zero && v.E != kDenormalExponent)
+
+            ulong d64 = d64_;
+            ulong vF;
+            int vE;
+            if (IsDenormal)
+            {
+                vF = d64 & kSignificandMask;
+                vE = kDenormalExponent;
+            }
+            else
+            {
+                vF = (d64 & kSignificandMask) + kHiddenBit;
+                vE = (int)((d64 & kExponentMask) >> kPhysicalSignificandSize) - kExponentBias;
+            }
+
+            ulong plusF = (vF << 1) + 1;
+            int plusE = vE - 1;
+
+            // This code is manually inlined from the GrisuDouble.Normalize() method,
+            // because the .NET JIT (at least the 64-bit one as of version 4) is too
+            // incompetent to do it itself.
+            const ulong k10MSBits = 0xFFC0000000000000;
+            const ulong kUint64MSB = 0x8000000000000000;
+            while ((plusF & k10MSBits) == 0)
+            {
+                plusF <<= 10;
+                plusE -= 10;
+            }
+            while ((plusF & kUint64MSB) == 0)
+            {
+                plusF <<= 1;
+                plusE--;
+            }
+
+            ulong minusF;
+            int minusE;
+            bool significand_is_zero = (vF == kHiddenBit);
+            if (significand_is_zero && vE != kDenormalExponent)
             {
                 // The boundary is closer. Think of v = 1000e10 and v- = 9999e9.
                 // Then the boundary (== (v - v-)/2) is not just at a distance of 1e9 but
@@ -200,16 +238,16 @@ namespace grisu.net
                 // The only exception is for the smallest normal: the largest denormal is
                 // at the same distance as its successor.
                 // Note: denormals have the same exponent as the smallest normals.
-                m_minus = new DiyFp((v.F << 2) - 1, v.E - 2);
+                minusF = (vF << 2) - 1;
+                minusE = vE - 2;
             }
             else
             {
-                m_minus = new DiyFp((v.F << 1) - 1, v.E - 1);
+                minusF = (vF << 1) - 1;
+                minusE = vE - 1;
             }
-            m_minus.F = m_minus.F << (m_minus.E - m_plus.E);
-            m_minus.E = m_plus.E;
-            out_m_plus = m_plus;
-            out_m_minus = m_minus;
+            out_m_minus = new DiyFp(minusF << (minusE - plusE), plusE);
+            out_m_plus = new DiyFp(plusF, plusE);
         }
 
         public double Value
