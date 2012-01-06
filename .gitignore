@@ -1,5 +1,7 @@
-obj/
-bin/
+grisu.net/obj/
+Tests/obj/
+grisu.net/bin/
+Tests/bin/
 *.suo
 *.docstates
 TestResults/
