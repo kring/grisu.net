@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 
-namespace grisu.net
+namespace GrisuDotNet
 {
     internal struct GrisuDouble
     {

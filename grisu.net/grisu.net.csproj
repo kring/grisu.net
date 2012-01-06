@@ -8,7 +8,7 @@
     <ProjectGuid>{5A07A037-7EE6-4DC5-AB45-564FE1C92D72}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>grisu.net</RootNamespace>
+    <RootNamespace>GrisuDotNet</RootNamespace>
     <AssemblyName>grisu.net</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>

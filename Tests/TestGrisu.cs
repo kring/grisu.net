@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Text;
-using grisu.net;
+using GrisuDotNet;
 using NUnit.Framework;
 
 namespace Tests
@@ -19,7 +19,7 @@ namespace Tests
         public void TestPerformance()
         {
             Random r = new Random(1);
-            double[] values = new double[10000000];
+            double[] values = new double[1000000];
             for (int i = 0; i < values.Length; ++i)
             {
                 values[i] = (r.NextDouble() - 0.5) * Math.Pow(10, r.NextDouble() * 308);
@@ -33,6 +33,7 @@ namespace Tests
             {
                 //builder.AppendFormat("{0:R}", values[i]);
                 builder.Append(values[i].ToString("R"));
+                //builder.Append(values[i]);
             }
             sw.Stop();
             Console.WriteLine("builtin length: " + builder.ToString().Length);

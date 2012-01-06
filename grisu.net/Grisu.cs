@@ -2,7 +2,7 @@
 using System;
 using System.Diagnostics;
 
-namespace grisu.net
+namespace GrisuDotNet
 {
     public static class Grisu
     {

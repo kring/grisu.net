@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 
-namespace grisu.net
+namespace GrisuDotNet
 {
     // This "Do It Yourself Floating Point" class implements a floating-point number
     // with a uint64 significand and an int exponent. Normalized DiyFp numbers will
