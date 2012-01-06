@@ -40,7 +40,7 @@ namespace Tests
             if (values.Length < 100)
                 Console.WriteLine(builder.ToString());
 
-            builder = new StringBuilder(300000000);
+            builder = new StringBuilder();
             builder.Clear();
             sw = new Stopwatch();
             sw.Start();
