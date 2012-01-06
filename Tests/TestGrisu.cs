@@ -14,19 +14,15 @@ namespace Tests
             new TestGrisu().TestPerformance();
         }
 
-        const ulong kSignMask = 0x8000000000000000;
-
         [Test]
         [Explicit]
         public void TestPerformance()
         {
             Random r = new Random(1);
             double[] values = new double[10000000];
-            ulong[] valuesi = new ulong[values.Length];
             for (int i = 0; i < values.Length; ++i)
             {
                 values[i] = (r.NextDouble() - 0.5) * Math.Pow(10, r.NextDouble() * 308);
-                valuesi[i] = (ulong)BitConverter.DoubleToInt64Bits(values[i]);
             }
 
             StringBuilder builder = new StringBuilder();
@@ -36,27 +32,26 @@ namespace Tests
             for (int i = 0; i < values.Length; ++i)
             {
                 //builder.AppendFormat("{0:R}", values[i]);
+                builder.Append(values[i].ToString("R"));
             }
             sw.Stop();
-            //Console.WriteLine("builtin length: " + builder.ToString().Length);
+            Console.WriteLine("builtin length: " + builder.ToString().Length);
             Console.WriteLine("builtin time: " + sw.ElapsedMilliseconds);
             if (values.Length < 100)
                 Console.WriteLine(builder.ToString());
 
             builder = new StringBuilder(300000000);
-            //for (int j = 0; j < 10; ++j)
+            builder.Clear();
+            sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < values.Length; ++i)
             {
-                builder.Clear();
-                sw = new Stopwatch();
-                sw.Start();
-                for (int i = 0; i < values.Length; ++i)
-                {
-                    Grisu.DoubleToString(values[i], builder);
-                }
-                sw.Stop();
-                //Console.WriteLine("grisu length: " + builder.ToString().Length);
-                Console.WriteLine("grisu time: " + sw.ElapsedMilliseconds);
+                Grisu.DoubleToString(values[i], builder);
             }
+            sw.Stop();
+            Console.WriteLine("grisu length: " + builder.ToString().Length);
+            Console.WriteLine("grisu time: " + sw.ElapsedMilliseconds);
+
             if (values.Length < 100)
                 Console.WriteLine(builder.ToString());
         }
