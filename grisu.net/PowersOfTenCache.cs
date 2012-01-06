@@ -27,7 +27,7 @@ namespace grisu.net
             int foo = kCachedPowersOffset;
             int index =
                 (foo + (int)(k) - 1) / kDecimalExponentDistance + 1;
-            Debug.Assert(0 <= index && index < kCachedPowersLength);
+            Debug.Assert(0 <= index && index < kCachedPowers.Length);
             CachedPower cached_power = kCachedPowers[index];
             Debug.Assert(min_exponent <= cached_power.binary_exponent);
             Debug.Assert(cached_power.binary_exponent <= max_exponent);
@@ -153,7 +153,7 @@ namespace grisu.net
           new CachedPower() {significand = 0xaf87023b9bf0ee6b, binary_exponent = 1066, decimal_exponent = 340},
         };
 
-        static readonly int kCachedPowersLength = kCachedPowers.Length;
+        //static readonly int kCachedPowersLength = kCachedPowers.Length;
         const int kCachedPowersOffset = 348;  // -1 * the first decimal_exponent.
         const double kD_1_LOG2_10 = 0.30102999566398114;  //  1 / lg(10)
     }
