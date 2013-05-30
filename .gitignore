@@ -1,8 +1,9 @@
-grisu.net/obj/
-Tests/obj/
-grisu.net/bin/
-Tests/bin/
+bin
+obj
+!ThirdParty/**/bin/
+_ReSharper.*
 *.suo
+*.DotSettings.user
 *.docstates
 TestResults/
 *.pidb
