@@ -24,11 +24,11 @@
 // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.using System;
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-using System.Text;
 using System;
 using System.Diagnostics;
+using System.IO;
 
 namespace GrisuDotNet
 {
@@ -37,18 +37,18 @@ namespace GrisuDotNet
         [ThreadStatic]
         private static char[] ts_decimal_rep;
 
-        public static void DoubleToString(double value, StringBuilder resultBuilder)
+        public static void DoubleToString(double value, TextWriter writer)
         {
             if (value < 0.0)
             {
-                resultBuilder.Append('-');
+                writer.Write('-');
                 value = -value;
             }
 
             GrisuDouble grisuDouble = new GrisuDouble(value);
             if (grisuDouble.IsSpecial)
             {
-                HandleSpecialValues(ref grisuDouble, resultBuilder);
+                HandleSpecialValues(ref grisuDouble, writer);
                 return;
             }
 
@@ -61,11 +61,11 @@ namespace GrisuDotNet
 
             if (!DoubleToShortestAscii(ref grisuDouble, decimal_rep, out decimal_rep_length, out decimal_point))
             {
-                resultBuilder.AppendFormat("{0:R}", value);
+                writer.Write("{0:R}", value);
                 return;
             }
 
-            int decimalRepLength = decimal_rep_length + 1;
+            int decimalRepLength = decimal_rep_length;
             if (decimal_point < 1)
             {
                 decimalRepLength += -decimal_point + 1;
@@ -92,30 +92,14 @@ namespace GrisuDotNet
                 CreateDecimalRepresentation(decimal_rep, decimal_rep_length,
                                             decimal_point,
                                             Math.Max(0, decimal_rep_length - decimal_point),
-                                            resultBuilder);
+                                            writer);
             }
             else
             {
                 CreateExponentialRepresentation(decimal_rep, decimal_rep_length, exponent,
-                                                resultBuilder);
+                                                writer);
             }
         }
-
-        // When calling ToFixed with a double > 10^kMaxFixedDigitsBeforePoint
-        // or a requested_digits parameter > kMaxFixedDigitsAfterPoint then the
-        // function returns false.
-        private const int kMaxFixedDigitsBeforePoint = 60;
-        private const int kMaxFixedDigitsAfterPoint = 60;
-
-        // When calling ToExponential with a requested_digits
-        // parameter > kMaxExponentialDigits then the function returns false.
-        private const int kMaxExponentialDigits = 120;
-
-        // When calling ToPrecision with a requested_digits
-        // parameter < kMinPrecisionDigits or requested_digits > kMaxPrecisionDigits
-        // then the function returns false.
-        private const int kMinPrecisionDigits = 1;
-        private const int kMaxPrecisionDigits = 120;
 
         // The maximal number of digits that are needed to emit a double in base 10.
         // A higher precision can be achieved by using more digits, but the shortest
@@ -125,43 +109,26 @@ namespace GrisuDotNet
         // should be at least kBase10MaximalLength + 1 characters long.
         private const int kBase10MaximalLength = 17;
 
-        private const int decimal_in_shortest_low_ = -6;
-        private const int decimal_in_shortest_high_ = 21;
-
         private const string infinity_symbol_ = "Infinity";
         private const string nan_symbol_ = "NaN";
         private const char exponent_character_ = 'e';
 
-        private enum DtoaMode
-        {
-            // Produce the shortest correct representation.
-            // For example the output of 0.299999999999999988897 is (the less accurate
-            // but correct) 0.3.
-            SHORTEST,
-            // Produce a fixed number of digits after the decimal point.
-            // For instance fixed(0.1, 4) becomes 0.1000
-            // If the input number is big, the output will be big.
-            FIXED,
-            // Fixed number of digits (independent of the decimal point).
-            PRECISION
-        }
-
         private static void HandleSpecialValues(
             ref GrisuDouble double_inspect,
-            StringBuilder resultBuilder)
+            TextWriter writer)
         {
             if (double_inspect.IsInfinite)
             {
                 if (double_inspect.Value < 0)
                 {
-                    resultBuilder.Append('-');
+                    writer.Write('-');
                 }
-                resultBuilder.Append(infinity_symbol_);
+                writer.Write(infinity_symbol_);
                 return;
             }
             if (double_inspect.IsNaN)
             {
-                resultBuilder.Append(nan_symbol_);
+                writer.Write(nan_symbol_);
                 return;
             }
         }
@@ -182,7 +149,7 @@ namespace GrisuDotNet
                 return true;
             }
 
-            int decimal_exponent = 0;
+            int decimal_exponent;
             bool result = Grisu3(ref v, buffer, out length, out decimal_exponent);
             if (result)
             {
@@ -593,50 +560,45 @@ namespace GrisuDotNet
             int length,
             int decimal_point,
             int digits_after_point,
-            StringBuilder result_builder)
+            TextWriter writer)
         {
             // Create a representation that is padded with zeros if needed.
             if (decimal_point <= 0)
             {
                 // "0.00000decimal_rep".
-                result_builder.Append('0');
+                writer.Write('0');
                 if (digits_after_point > 0)
                 {
-                    result_builder.Append('.');
-                    result_builder.Append('0', -decimal_point);
+                    writer.Write('.');
+                    writer.Write(new string('0', -decimal_point));
                     Debug.Assert(length <= digits_after_point - (-decimal_point));
-                    result_builder.Append(decimal_digits, 0, length);
+                    writer.Write(decimal_digits, 0, length);
                     int remaining_digits = digits_after_point - (-decimal_point) - length;
-                    result_builder.Append('0', remaining_digits);
+                    writer.Write(new string('0', remaining_digits));
                 }
             }
             else if (decimal_point >= length)
             {
                 // "decimal_rep0000.00000" or "decimal_rep.0000"
-                result_builder.Append(decimal_digits, 0, length);
-                result_builder.Append('0', decimal_point - length);
+                writer.Write(decimal_digits, 0, length);
+                writer.Write(new string('0', decimal_point - length));
                 if (digits_after_point > 0)
                 {
-                    result_builder.Append('.');
-                    result_builder.Append('0', digits_after_point);
+                    writer.Write('.');
+                    writer.Write(new string('0', digits_after_point));
                 }
             }
             else
             {
                 // "decima.l_rep000"
                 Debug.Assert(digits_after_point > 0);
-                result_builder.Append(decimal_digits, 0, decimal_point);
-                result_builder.Append('.');
+                writer.Write(decimal_digits, 0, decimal_point);
+                writer.Write('.');
                 Debug.Assert(length - decimal_point <= digits_after_point);
-                result_builder.Append(decimal_digits, decimal_point,
+                writer.Write(decimal_digits, decimal_point,
                                              length - decimal_point);
                 int remaining_digits = digits_after_point - (length - decimal_point);
-                result_builder.Append('0', remaining_digits);
-            }
-            if (digits_after_point == 0)
-            {
-                result_builder.Append('.');
-                result_builder.Append('0');
+                writer.Write(new string('0', remaining_digits));
             }
         }
 
@@ -644,44 +606,44 @@ namespace GrisuDotNet
             char[] decimal_digits,
             int length,
             int exponent,
-            StringBuilder result_builder)
+            TextWriter writer)
         {
             Debug.Assert(length != 0);
-            result_builder.Append(decimal_digits[0]);
+            writer.Write(decimal_digits[0]);
             if (length != 1)
             {
-                result_builder.Append('.');
-                result_builder.Append(decimal_digits, 1, length - 1);
+                writer.Write('.');
+                writer.Write(decimal_digits, 1, length - 1);
             }
-            result_builder.Append(exponent_character_);
+            writer.Write(exponent_character_);
             if (exponent < 0)
             {
-                result_builder.Append('-');
+                writer.Write('-');
                 exponent = -exponent;
             }
             if (exponent == 0)
             {
-                result_builder.Append('0');
+                writer.Write('0');
                 return;
             }
             Debug.Assert(exponent < 1e4);
             if (exponent >= 100)
             {
-                result_builder.Append((char)('0' + exponent / 100));
+                writer.Write((char)('0' + exponent / 100));
                 exponent %= 100;
-                result_builder.Append((char)('0' + exponent / 10));
+                writer.Write((char)('0' + exponent / 10));
                 exponent %= 10;
-                result_builder.Append((char)('0' + exponent));
+                writer.Write((char)('0' + exponent));
             }
             else if (exponent >= 10)
             {
-                result_builder.Append((char)('0' + exponent / 10));
+                writer.Write((char)('0' + exponent / 10));
                 exponent %= 10;
-                result_builder.Append((char)('0' + exponent));
+                writer.Write((char)('0' + exponent));
             }
             else
             {
-                result_builder.Append(exponent);
+                writer.Write(exponent);
             }
         }
     }

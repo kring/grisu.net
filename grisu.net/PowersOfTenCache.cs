@@ -24,12 +24,9 @@
 // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.using System;
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Diagnostics;
 
 namespace GrisuDotNet
@@ -181,7 +178,6 @@ namespace GrisuDotNet
           new CachedPower() {significand = 0xaf87023b9bf0ee6b, binary_exponent = 1066, decimal_exponent = 340},
         };
 
-        //static readonly int kCachedPowersLength = kCachedPowers.Length;
         const int kCachedPowersOffset = 348;  // -1 * the first decimal_exponent.
         const double kD_1_LOG2_10 = 0.30102999566398114;  //  1 / lg(10)
     }

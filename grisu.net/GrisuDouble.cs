@@ -24,12 +24,9 @@
 // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.using System;
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Diagnostics;
 
 namespace GrisuDotNet
@@ -47,7 +44,6 @@ namespace GrisuDotNet
         const int kDenormalExponent = -kExponentBias + 1;
         const int kMaxExponent = 0x7FF - kExponentBias;
         const ulong kInfinity = 0x7FF0000000000000;
-        const ulong kNaN = 0x7FF8000000000000;
 
         public GrisuDouble(double d)
         {
@@ -111,25 +107,6 @@ namespace GrisuDotNet
         public ulong AsUInt64()
         {
             return d64_;
-        }
-
-        // Returns the next greater double. Returns +infinity on input +infinity.
-        double NextDouble()
-        {
-            if (d64_ == kInfinity) return double.PositiveInfinity;
-            if (Sign < 0 && Significand == 0)
-            {
-                // -0.0
-                return 0.0;
-            }
-            if (Sign < 0)
-            {
-                return new GrisuDouble(d64_ - 1).Value;
-            }
-            else
-            {
-                return new GrisuDouble(d64_ + 1).Value;
-            }
         }
 
         public int Exponent

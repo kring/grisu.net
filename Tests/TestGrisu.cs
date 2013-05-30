@@ -24,11 +24,11 @@
 // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.using System;
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
 using System.Diagnostics;
-using System.Text;
+using System.IO;
 using GrisuDotNet;
 using NUnit.Framework;
 
@@ -53,43 +53,43 @@ namespace Tests
                 values[i] = (r.NextDouble() - 0.5) * Math.Pow(10, r.NextDouble() * 308);
             }
 
-            StringBuilder builder = new StringBuilder();
+            StringWriter writer = new StringWriter();
 
             Stopwatch sw = new Stopwatch();
             sw.Start();
             for (int i = 0; i < values.Length; ++i)
             {
                 //builder.AppendFormat("{0:R}", values[i]);
-                builder.Append(values[i].ToString("R"));
+                writer.Write(values[i].ToString("R"));
                 //builder.Append(values[i]);
             }
             sw.Stop();
-            Console.WriteLine("builtin length: " + builder.ToString().Length);
+            Console.WriteLine("builtin length: " + writer.ToString().Length);
             Console.WriteLine("builtin time: " + sw.ElapsedMilliseconds);
             if (values.Length < 100)
-                Console.WriteLine(builder.ToString());
+                Console.WriteLine(writer.ToString());
 
-            builder = new StringBuilder();
-            builder.Clear();
+            writer = new StringWriter();
+
             sw = new Stopwatch();
             sw.Start();
             for (int i = 0; i < values.Length; ++i)
             {
-                Grisu.DoubleToString(values[i], builder);
+                Grisu.DoubleToString(values[i], writer);
             }
             sw.Stop();
-            Console.WriteLine("grisu length: " + builder.ToString().Length);
+            Console.WriteLine("grisu length: " + writer.ToString().Length);
             Console.WriteLine("grisu time: " + sw.ElapsedMilliseconds);
 
             if (values.Length < 100)
-                Console.WriteLine(builder.ToString());
+                Console.WriteLine(writer.ToString());
         }
 
         [Test]
         public void TestDoubleToString()
         {
-            CheckDoubleToStringEquals("0.0", 0.0);
-            CheckDoubleToStringEquals("12345.0", 12345.0);
+            CheckDoubleToStringEquals("0", 0.0);
+            CheckDoubleToStringEquals("12345", 12345.0);
             CheckDoubleToStringEquals("1.2345e27", 12345e23);
             CheckDoubleToStringEquals("1e21", 1e21);
             CheckDoubleToStringEquals("1e20", 1e20);
@@ -99,12 +99,15 @@ namespace Tests
             CheckDoubleToStringEquals("-1e-5", -0.00001);
             CheckDoubleToStringEquals("-1e-6", -0.000001);
             CheckDoubleToStringEquals("-1e-7", -0.0000001);
-            CheckDoubleToStringEquals("0.0", -0.0);
+            CheckDoubleToStringEquals("0", -0.0);
             CheckDoubleToStringEquals("0.1", 0.1);
             CheckDoubleToStringEquals("0.01", 0.01);
-            CheckDoubleToStringEquals("1.0", 1.0);
-            CheckDoubleToStringEquals("10.0", 10.0);
+            CheckDoubleToStringEquals("1", 1.0);
+            CheckDoubleToStringEquals("10", 10.0);
+            CheckDoubleToStringEquals("1100", 1100.0);
+            CheckDoubleToStringEquals("1122", 1122.0);
             CheckDoubleToStringEquals("1e4", 10000.0);
+            CheckDoubleToStringEquals("11100", 11100.0);
             CheckDoubleToStringEquals("1e5", 100000.0);
             CheckDoubleToStringEquals("1e-6", 0.000001);
             CheckDoubleToStringEquals("1e-7", 0.0000001);
@@ -117,9 +120,9 @@ namespace Tests
 
         private void CheckDoubleToStringEquals(string expected, double value)
         {
-            StringBuilder builder = new StringBuilder();
-            Grisu.DoubleToString(value, builder);
-            Assert.AreEqual(expected, builder.ToString());
+            StringWriter writer = new StringWriter();
+            Grisu.DoubleToString(value, writer);
+            Assert.AreEqual(expected, writer.ToString());
         }
     }
 }
