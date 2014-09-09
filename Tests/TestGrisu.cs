@@ -28,7 +28,9 @@
 
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Threading;
 using GrisuDotNet;
 using NUnit.Framework;
 
@@ -116,6 +118,7 @@ namespace Tests
             CheckDoubleToStringEquals("-Infinity", double.NegativeInfinity);
             CheckDoubleToStringEquals("NaN", double.NaN);
             CheckDoubleToStringEquals("NaN", -double.NaN);
+            CheckDoubleToStringEquals("3.5844466002796428E+298", 3.5844466002796428e+298);
         }
 
         private void CheckDoubleToStringEquals(string expected, double value)
@@ -123,6 +126,26 @@ namespace Tests
             StringWriter writer = new StringWriter();
             Grisu.DoubleToString(value, writer);
             Assert.AreEqual(expected, writer.ToString());
+        }
+
+        [TestFixture]
+        public class TestNonEnglishCulture : TestGrisu
+        {
+            private CultureInfo m_originalCulture;
+
+            [TestFixtureSetUp]
+            public void TestFixtureSetUp()
+            {
+                m_originalCulture = Thread.CurrentThread.CurrentCulture;
+
+                Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+            }
+
+            [TestFixtureTearDown]
+            public void TearDown()
+            {
+                Thread.CurrentThread.CurrentCulture = m_originalCulture;
+            }
         }
     }
 }
